@@ -321,52 +321,95 @@ public class KafkaSchemaRegistry implements SchemaRegistry {
     }
   }
 
+  private static final class SchemaRegistration {
+    public int schemaId = -1;
+    boolean schemaAlreadyRegistered = false;
+    public List<String> undeletedSchemasList = new ArrayList<>();
+    public int version = -1;
+  }
+
+  private SchemaRegistration locateSchemaRegistration(String subject,
+                                                      Schema schema)
+          throws SchemaRegistryException {
+    SchemaRegistration schemaRegistration = new SchemaRegistration();
+
+    // see if the schema to be registered already exists
+    MD5 md5 = MD5.ofString(schema.getSchema());
+    if (this.schemaHashToGuid.containsKey(md5)) {
+      SchemaIdAndSubjects schemaIdAndSubjects = this.schemaHashToGuid.get(md5);
+      if (schemaIdAndSubjects.hasSubject(subject)
+              && !isSubjectVersionDeleted(subject, schemaIdAndSubjects.getVersion(subject))) {
+        // return only if the schema was previously registered under the input subject
+        if (schema.getVersion() == 0
+                || schema.getVersion() == schemaIdAndSubjects.getVersion(subject)) {
+          schemaRegistration.schemaId = schemaIdAndSubjects.getSchemaId();
+          schemaRegistration.schemaAlreadyRegistered = true;
+          return schemaRegistration;
+        }
+      } else {
+        // need to register schema under the input subject
+        schemaRegistration.schemaId = schemaIdAndSubjects.getSchemaId();
+      }
+    }
+
+    // determine the latest version of the schema in the subject
+    int newVersion = schema.getVersion();
+    if (newVersion == 0) {
+      Iterator<Schema> allVersions = getAllVersions(subject, true);
+      newVersion = MIN_VERSION;
+      while (allVersions.hasNext()) {
+        newVersion = allVersions.next().getVersion() + 1;
+      }
+    }
+    schemaRegistration.version = newVersion;
+
+    Iterator<Schema> undeletedVersions = getAllVersions(subject, false);
+    while (undeletedVersions.hasNext()) {
+      Schema nextVersion = undeletedVersions.next();
+      if (schema.getVersion() == 0 || schema.getVersion() > nextVersion.getVersion()) {
+        schemaRegistration.undeletedSchemasList.add(nextVersion.getSchema());
+      } else if (schema.getVersion() == nextVersion.getVersion()) {
+        if (schema.getSchema() != nextVersion.getSchema()) {
+          throw new IncompatibleSchemaException(
+                  "Attempting to register a different schema against the same version.");
+        }
+        schemaRegistration.schemaId = nextVersion.getId();
+        schemaRegistration.schemaAlreadyRegistered = true;
+      } else {
+        break;
+      }
+    }
+
+    return schemaRegistration;
+  }
+
   @Override
-  public int register(String subject,
-                      Schema schema)
-      throws SchemaRegistryException {
+  public int register(String subject, Schema schema)
+          throws SchemaRegistryException {
     try {
       // Ensure cache is up-to-date before any potential writes
       kafkaStore.waitUntilKafkaReaderReachesLastOffset(kafkaStoreTimeoutMs);
 
-      // see if the schema to be registered already exists
-      MD5 md5 = MD5.ofString(schema.getSchema());
-      int schemaId = -1;
-      if (this.schemaHashToGuid.containsKey(md5)) {
-        SchemaIdAndSubjects schemaIdAndSubjects = this.schemaHashToGuid.get(md5);
-        if (schemaIdAndSubjects.hasSubject(subject)
-            && !isSubjectVersionDeleted(subject, schemaIdAndSubjects.getVersion(subject))) {
-          // return only if the schema was previously registered under the input subject
-          return schemaIdAndSubjects.getSchemaId();
-        } else {
-          // need to register schema under the input subject
-          schemaId = schemaIdAndSubjects.getSchemaId();
-        }
+      if (schema.getVersion() == null) {
+        schema.setVersion(0);
       }
 
-      // determine the latest version of the schema in the subject
-      Iterator<Schema> allVersions = getAllVersions(subject, true);
-      Iterator<Schema> undeletedVersions = getAllVersions(subject, false);
+      canonicalizeSchema(schema);
 
-      List<String> undeletedSchemasList = new ArrayList<>();
-      Schema latestSchema = null;
-      int newVersion = MIN_VERSION;
-      while (allVersions.hasNext()) {
-        newVersion = allVersions.next().getVersion() + 1;
-      }
-      while (undeletedVersions.hasNext()) {
-        latestSchema = undeletedVersions.next();
-        undeletedSchemasList.add(latestSchema.getSchema());
+      KafkaSchemaRegistry.SchemaRegistration schemaRegistration =
+              locateSchemaRegistration(subject, schema);
+      if (schemaRegistration.schemaAlreadyRegistered) {
+        return schemaRegistration.schemaId;
       }
 
-      AvroSchema avroSchema = canonicalizeSchema(schema);
       // assign a guid and put the schema in the kafka store
-      if (latestSchema == null || isCompatible(subject, avroSchema.canonicalString,
-                                               undeletedSchemasList)) {
-        schema.setVersion(newVersion);
+      if (schemaRegistration.undeletedSchemasList.isEmpty()
+              || isCompatible(subject,
+                    schema.getSchema(), schemaRegistration.undeletedSchemasList)) {
+        schema.setVersion(schemaRegistration.version);
 
-        if (schemaId >= 0) {
-          schema.setId(schemaId);
+        if (schemaRegistration.schemaId >= 0) {
+          schema.setId(schemaRegistration.schemaId);
         } else {
           schema.setId(nextAvailableSchemaId);
           nextAvailableSchemaId++;
@@ -376,7 +419,7 @@ public class KafkaSchemaRegistry implements SchemaRegistry {
         }
 
         SchemaValue schemaValue = new SchemaValue(schema);
-        kafkaStore.put(new SchemaKey(subject, newVersion), schemaValue);
+        kafkaStore.put(new SchemaKey(subject, schemaRegistration.version), schemaValue);
         return schema.getId();
       } else {
         throw new IncompatibleSchemaException(

@@ -145,10 +145,10 @@ public class SubjectVersionsResource {
                        final @HeaderParam("Accept") String accept,
                        @PathParam("subject") String subjectName,
                        @NotNull RegisterSchemaRequest request) {
-
     Map<String, String> headerProperties = new HashMap<String, String>();
     headerProperties.put("Content-Type", contentType);
     headerProperties.put("Accept", accept);
+
     Schema schema = new Schema(subjectName, 0, 0, request.getSchema());
     int id = 0;
     try {
@@ -166,6 +166,52 @@ public class SubjectVersionsResource {
     } catch (IncompatibleSchemaException e) {
       throw Errors.incompatibleSchemaException("Schema being registered is incompatible with an"
                                                + " earlier schema", e);
+    } catch (UnknownMasterException e) {
+      throw Errors.unknownMasterException("Master not known.", e);
+    } catch (SchemaRegistryException e) {
+      throw Errors.schemaRegistryException("Error while registering schema", e);
+    }
+    RegisterSchemaResponse registerSchemaResponse = new RegisterSchemaResponse();
+    registerSchemaResponse.setId(id);
+    asyncResponse.resume(registerSchemaResponse);
+  }
+
+  @POST
+  @Path("/{version}")
+  @PerformanceMetric("subjects.versions.register-version")
+  public void registerVersion(final @Suspended AsyncResponse asyncResponse,
+                              final @HeaderParam("Content-Type") String contentType,
+                              final @HeaderParam("Accept") String accept,
+                              @PathParam("subject") String subjectName,
+                              @PathParam("version") String version,
+                              @NotNull RegisterSchemaRequest request) {
+    Map<String, String> headerProperties = new HashMap<String, String>();
+    headerProperties.put("Content-Type", contentType);
+    headerProperties.put("Accept", accept);
+
+    VersionId versionId = null;
+    try {
+      versionId = new VersionId(version);
+    } catch (InvalidVersionException e) {
+      throw Errors.invalidVersionException();
+    }
+    Schema schema = new Schema(subjectName, versionId.getVersionId(), 0, request.getSchema());
+    int id = 0;
+    try {
+      id = schemaRegistry.registerOrForward(subjectName, schema, headerProperties);
+    } catch (InvalidSchemaException e) {
+      throw Errors.invalidAvroException("Input schema is an invalid Avro schema", e);
+    } catch (SchemaRegistryTimeoutException e) {
+      throw Errors.operationTimeoutException("Register operation timed out", e);
+    } catch (SchemaRegistryStoreException e) {
+      throw Errors.storeException("Register schema operation failed while writing"
+              + " to the Kafka store", e);
+    } catch (SchemaRegistryRequestForwardingException e) {
+      throw Errors.requestForwardingFailedException("Error while forwarding register schema request"
+              + " to the master", e);
+    } catch (IncompatibleSchemaException e) {
+      throw Errors.incompatibleSchemaException("Schema being registered is incompatible with an"
+              + " earlier schema", e);
     } catch (UnknownMasterException e) {
       throw Errors.unknownMasterException("Master not known.", e);
     } catch (SchemaRegistryException e) {
