@@ -321,6 +321,63 @@ public class KafkaSchemaRegistry implements SchemaRegistry {
     }
   }
 
+  private final class SchemaRegistration {
+    public int schemaId = -1;
+    boolean schemaAlreadyRegistered = false;
+    public List<String> undeletedSchemasList = new ArrayList<>();
+    public int version = -1;
+
+    SchemaRegistration(String subject, Schema schema) throws SchemaRegistryException {
+      // see if the schema to be registered already exists
+      MD5 md5 = MD5.ofString(schema.getSchema());
+      if (KafkaSchemaRegistry.this.schemaHashToGuid.containsKey(md5)) {
+        SchemaIdAndSubjects schemaIdAndSubjects = 
+            KafkaSchemaRegistry.this.schemaHashToGuid.get(md5);
+        if (schemaIdAndSubjects.hasSubject(subject)
+                && !isSubjectVersionDeleted(subject, schemaIdAndSubjects.getVersion(subject))) {
+          // return only if the schema was previously registered under the input subject
+          if (schema.getVersion() == 0
+                  || schema.getVersion() == schemaIdAndSubjects.getVersion(subject)) {
+            this.schemaId = schemaIdAndSubjects.getSchemaId();
+            this.schemaAlreadyRegistered = true;
+            return;
+          }
+        } else {
+          // need to register schema under the input subject
+          this.schemaId = schemaIdAndSubjects.getSchemaId();
+        }
+      }
+
+      // determine the latest version of the schema in the subject
+      int newVersion = schema.getVersion();
+      if (newVersion == 0) {
+        Iterator<Schema> allVersions = getAllVersions(subject, true);
+        newVersion = MIN_VERSION;
+        while (allVersions.hasNext()) {
+          newVersion = allVersions.next().getVersion() + 1;
+        }
+      }
+      this.version = newVersion;
+
+      Iterator<Schema> undeletedVersions = getAllVersions(subject, false);
+      while (undeletedVersions.hasNext()) {
+        Schema nextVersion = undeletedVersions.next();
+        if (schema.getVersion() == 0 || schema.getVersion() > nextVersion.getVersion()) {
+          this.undeletedSchemasList.add(nextVersion.getSchema());
+        } else if (schema.getVersion() == nextVersion.getVersion()) {
+          if (schema.getSchema() != nextVersion.getSchema()) {
+            throw new IncompatibleSchemaException(
+                    "Attempting to register a different schema against the same version.");
+          }
+          this.schemaId = nextVersion.getId();
+          this.schemaAlreadyRegistered = true;
+        } else {
+          break;
+        }
+      }
+    }
+  }
+
   @Override
   public int register(String subject,
                       Schema schema)
