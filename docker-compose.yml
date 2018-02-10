@@ -1,0 +1,16 @@
+version: '3'
+services:
+  kafka:
+    image: spotify/kafka
+    environment:
+      ADVERTISED_HOST: kafka
+  registry:
+    image: schema-registry:local
+    build:
+      context: .
+    environment:
+      SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: kafka:2181
+    ports:
+      - "8081:8081"
+    depends_on:
+      - kafka
