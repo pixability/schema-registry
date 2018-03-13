@@ -1,0 +1,21 @@
+#!/bin/sh
+
+COMMIT_HASH=$(git rev-parse --short HEAD)
+
+# Tag is composed with schema registry version and last commit.
+BUILD_TAG=${BUILD_TAG:-"3.3.1-$COMMIT_HASH"}
+
+BUILD_DIR=$(dirname $0)
+
+# Build the latest & specific tag version image.
+docker build -t pixability/schema-registry:latest \
+             -t pixability/schema-registry:$BUILD_TAG \
+             $BUILD_DIR
+
+# Tag and push to ECR
+docker tag pixability/schema-registry:$BUILD_TAG 974422546278.dkr.ecr.us-east-1.amazonaws.com/pixability/schema-registry:$BUILD_TAG
+# eval $(aws ecr get-login --no-include-email)
+docker push 974422546278.dkr.ecr.us-east-1.amazonaws.com/pixability/schema-registry:$BUILD_TAG
+
+# Push to docker hub
+

@@ -34,5 +34,5 @@ ENV SCHEMA_REGISTRY_LOG4J_OPTS="-Dlog4j.configuration=file:/etc/schema-registry/
 
 EXPOSE 8081 ${JMX_PORT}
 
-CMD dockerize -wait tcp://${SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL:-localhost:2181} -template /etc/schema-registry/schema-registry.properties.tmpl:/etc/schema-registry/schema-registry.properties \
+CMD dockerize -template /etc/schema-registry/schema-registry.properties.tmpl:/etc/schema-registry/schema-registry.properties \
     /usr/bin/java ${SCHEMA_REGISTRY_HEAP_OPTS} ${SCHEMA_REGISTRY_JVM_PERFORMANCE_OPTS} ${SCHEMA_REGISTRY_JMX_OPTS} ${SCHEMA_REGISTRY_LOG4J_OPTS} -jar /usr/share/java/kafka-schema-registry-package-${SCHEMA_REGISTRY_VERSION}-standalone.jar /etc/schema-registry/schema-registry.properties
