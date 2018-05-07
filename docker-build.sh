@@ -1,4 +1,25 @@
 #!/bin/sh
+set -e -o pipefail
+
+args=$(getopt EAH $*)
+set -- $args
+for i; do
+  case "$i"
+  in
+    -E)
+        ECR=true;
+        shift;;
+    -A)
+        AUTH=true;
+        shift;;
+    -H)
+        HUB=true;
+        shift;;
+    --)
+        shift;
+        break;;
+  esac
+done
 
 COMMIT_HASH=$(git rev-parse --short HEAD)
 
@@ -13,10 +34,19 @@ docker build -t pixability/confluent-schema-registry:latest \
              $BUILD_DIR
 
 # Tag and push to ECR
-docker tag pixability/confluent-schema-registry:$BUILD_TAG 974422546278.dkr.ecr.us-east-1.amazonaws.com/pixability/confluent-schema-registry:$BUILD_TAG
-# eval $(aws ecr get-login --no-include-email)
-docker push 974422546278.dkr.ecr.us-east-1.amazonaws.com/pixability/confluent-schema-registry:$BUILD_TAG
+# Tag and push to ECR
+if [[ "$ECR" == "true" ]]; then
+  docker tag pixability/confluent-schema-registry:$BUILD_TAG 974422546278.dkr.ecr.us-east-1.amazonaws.com/pixability/confluent-schema-registry:$BUILD_TAG
+
+  if [[ "$AUTH" == "true" ]]; then
+    eval $(aws ecr get-login --no-include-email)
+  fi
+
+  docker push 974422546278.dkr.ecr.us-east-1.amazonaws.com/pixability/confluent-schema-registry:$BUILD_TAG
+fi
 
 # Push to docker hub
-# docker push pixability/confluent-schema-registry:$BUILD_TAG
+if [[ "$HUB" == "true" ]]; then
+  docker push pixability/confluent-schema-registry:$BUILD_TAG
+fi
 

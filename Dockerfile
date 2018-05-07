@@ -25,6 +25,7 @@ ENV SCHEMA_REGISTRY_VERSION=3.3.1
 
 COPY --from=build /schema-registry/package-schema-registry/target/kafka-schema-registry-package-${SCHEMA_REGISTRY_VERSION}-standalone.jar /usr/share/java/
 ADD config/ /etc/schema-registry
+ADD bin/ /usr/bin
 
 ENV JMX_PORT=9999
 ENV SCHEMA_REGISTRY_LOG4J_OPTS="-Dlog4j.configuration=file:/etc/schema-registry/log4j.properties -Dschema-registry.log.dir=/tmp" \
