@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+#
+# Copyright 2016 Confluent Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+set -o errexit \
+    -o verbose \
+    -o xtrace
+
+# HOSTNAME
+if [[ -n $HOSTNAME_COMMAND ]]; then
+    export SCHEMA_REGISTRY_HOST_NAME=$(eval $HOSTNAME_COMMAND)
+else
+    export SCHEMA_REGISTRY_HOST_NAME=$(hostname)
+fi
+
+echo "===> ENV Variables ..."
+env | sort
+
+echo "===> User"
+id
+
+echo "===> Configuring ..."
+dockerize -template /etc/schema-registry/schema-registry.properties.tmpl:/etc/schema-registry/schema-registry.properties
+
+echo "===> Launching ... "
+exec /usr/bin/java ${SCHEMA_REGISTRY_HEAP_OPTS} ${SCHEMA_REGISTRY_JVM_PERFORMANCE_OPTS} ${SCHEMA_REGISTRY_JMX_OPTS} ${SCHEMA_REGISTRY_LOG4J_OPTS} -jar /usr/share/java/kafka-schema-registry-package-${SCHEMA_REGISTRY_VERSION}-standalone.jar /etc/schema-registry/schema-registry.properties

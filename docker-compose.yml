@@ -14,3 +14,4 @@ services:
       - "8081:8081"
     depends_on:
       - kafka
+    restart: on-failure
