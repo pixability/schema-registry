@@ -28,7 +28,7 @@ ADD config/ /etc/schema-registry
 ADD bin/ /usr/bin
 
 ENV JMX_PORT=9999 \
-    LOG_DIR="/schema-registry/data/logs"
+    LOG_DIR="/var/log/schema-registry"
 ENV SCHEMA_REGISTRY_LOG4J_OPTS=" -Dschema-registry.log.dir=${LOG_DIR} -Dlog4j.configuration=file:/etc/schema-registry/log4j.properties" \
     SCHEMA_REGISTRY_HEAP_OPTS="-Xmx512M" \
     SCHEMA_REGISTRY_JVM_PERFORMANCE_OPTS="-server -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:+DisableExplicitGC -Djava.awt.headless=true" \
