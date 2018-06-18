@@ -25,6 +25,10 @@ else
     export SCHEMA_REGISTRY_HOST_NAME=$(hostname)
 fi
 
+if [[ -z $SCHEMA_REGISTRY_JMX_OPTS ]]; then
+    export SCHEMA_REGISTRY_JMX_OPTS="$SCHEMA_REGISTRY_JMX_OPTS -Djava.rmi.server.hostname=$SCHEMA_REGISTRY_HOST_NAME"
+fi
+
 echo "===> ENV Variables ..."
 env | sort
 

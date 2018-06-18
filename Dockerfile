@@ -27,11 +27,12 @@ COPY --from=build /schema-registry/package-schema-registry/target/kafka-schema-r
 ADD config/ /etc/schema-registry
 ADD bin/ /usr/bin
 
-ENV JMX_PORT=9999
-ENV SCHEMA_REGISTRY_LOG4J_OPTS="-Dlog4j.configuration=file:/etc/schema-registry/log4j.properties -Dschema-registry.log.dir=/tmp" \
+ENV JMX_PORT=9999 \
+    LOG_DIR="/schema-registry/data/logs"
+ENV SCHEMA_REGISTRY_LOG4J_OPTS=" -Dschema-registry.log.dir=${LOG_DIR} -Dlog4j.configuration=file:/etc/schema-registry/log4j.properties" \
     SCHEMA_REGISTRY_HEAP_OPTS="-Xmx512M" \
     SCHEMA_REGISTRY_JVM_PERFORMANCE_OPTS="-server -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:+DisableExplicitGC -Djava.awt.headless=true" \
-    SCHEMA_REGISTRY_JMX_OPTS="-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.port=${JMX_PORT}"
+    SCHEMA_REGISTRY_JMX_OPTS="-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.local.only=false -Dcom.sun.management.jmxremote.rmi.port=${JMX_PORT}"
 
 EXPOSE 8081 ${JMX_PORT}
 
