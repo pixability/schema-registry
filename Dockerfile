@@ -5,14 +5,14 @@ RUN echo 'deb http://http.debian.net/debian jessie-backports main' >> /etc/apt/s
     && apt-get install -y --no-install-recommends maven 
 
 RUN curl -sSL https://github.com/confluentinc/common/archive/v3.3.1.tar.gz | tar -xz -f - \
-    && (cd common-3.3.1; mvn install) \
+    && (cd common-3.3.1; mvn install -DskipTests=true) \
     && curl -sSL https://github.com/confluentinc/rest-utils/archive/v3.3.1.tar.gz | tar -xz -f - \
-    && (cd rest-utils-3.3.1; mvn install)
+    && (cd rest-utils-3.3.1; mvn install -DskipTests=true)
 
 COPY . /schema-registry/
 WORKDIR /schema-registry
 
-RUN mvn package -Pstandalone
+RUN mvn package -Pstandalone -DskipTests=true
 
 FROM openjdk:8
 
